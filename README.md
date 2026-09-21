@@ -22,23 +22,36 @@ clang -dynamiclib \
   src/MacLogin.m
 ```
 
-O arquivo compilado aparece como artefato do workflow **Build macOS Dylib**. A biblioteca exporta a função `MLD_ShowLogin` e também chama essa função no carregamento por meio de um construtor, fazendo a tela aparecer assim que o processo hospedeiro carrega a Dylib.
+O arquivo compilado aparece como artefato do workflow **Build macOS Dylib**. A biblioteca exporta a função `MLD_ShowLogin` e também chama essa função no carregamento por meio de um construtor.
+
+**Importante:** apenas copiar a `.dylib` para a pasta do aplicativo não a executa. O app precisa carregá-la com `dlopen` ou vinculá-la como biblioteca. O construtor só é executado depois que o macOS realmente carrega a Dylib no processo.
 
 ## Integração
 
 O aplicativo hospedeiro pode carregar a biblioteca com `dlopen`:
 
-```c
+```objective-c
 #include <dlfcn.h>
 
-dlclose(NULL); // apenas para mostrar que o código usa libdl
-void *handle = dlopen("/caminho/para/libMacLogin.dylib", RTLD_NOW);
+// Execute depois de NSApplication ter sido inicializado, por exemplo
+// em applicationDidFinishLaunching: do AppDelegate.
+void *handle = dlopen("/caminho/absoluto/libMacLogin.dylib", RTLD_NOW | RTLD_LOCAL);
 if (handle == NULL) {
-    // tratar erro com dlerror()
+    NSLog(@"Falha ao carregar a Dylib: %s", dlerror());
 }
 ```
 
-A inicialização automática depende de o processo hospedeiro possuir um `NSApplication` ativo e executar o loop principal. Alternativamente, depois do carregamento, o app pode obter e chamar a função exportada `MLD_ShowLogin` usando `dlsym`.
+Se a biblioteca estiver no bundle do app, use o caminho retornado por `[[NSBundle mainBundle] pathForResource:@"libMacLogin" ofType:@"dylib"]`. O app também precisa ter o mesmo tipo de arquitetura da biblioteca; a versão atual do workflow gera um binário universal **arm64 + x86_64**.
+
+Para chamar explicitamente a tela:
+
+```objective-c
+typedef void (*MLDShowLoginFunction)(void);
+MLDShowLoginFunction showLogin = (MLDShowLoginFunction)dlsym(handle, "MLD_ShowLogin");
+if (showLogin != NULL) {
+    showLogin();
+}
+```
 
 ## Observações importantes
 

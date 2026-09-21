@@ -16,14 +16,20 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf build
-          mkdir -p build
-          clang -dynamiclib \
-            -framework Cocoa \
-            -fobjc-arc \
-            -fvisibility=hidden \
-            -mmacosx-version-min=12.0 \
-            -o build/libMacLogin.dylib \
-            src/MacLogin.m
+          mkdir -p build/arm64 build/x86_64
+          for ARCH in arm64 x86_64; do
+            clang -arch "$ARCH" -dynamiclib \
+              -framework Cocoa \
+              -fobjc-arc \
+              -fvisibility=hidden \
+              -mmacosx-version-min=12.0 \
+              -o "build/$ARCH/libMacLogin.dylib" \
+              src/MacLogin.m
+          done
+          lipo -create \
+            build/arm64/libMacLogin.dylib \
+            build/x86_64/libMacLogin.dylib \
+            -output build/libMacLogin.dylib
           file build/libMacLogin.dylib
           nm -gU build/libMacLogin.dylib | grep MLD_ShowLogin
 

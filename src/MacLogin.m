@@ -2,7 +2,8 @@
 #import <objc/runtime.h>
 
 static NSString * const kFixedPassword = @"123456";
-static id gLoginController = nil;
+@class MLLoginController;
+static MLLoginController *gLoginController = nil;
 
 @interface MLLoginController : NSObject <NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;

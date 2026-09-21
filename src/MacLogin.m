@@ -112,6 +112,9 @@ static MLLoginController *gLoginController = nil;
 __attribute__((visibility("default")))
 void MLD_ShowLogin(void) {
     dispatch_async(dispatch_get_main_queue(), ^{
+        // Em uma Dylib injetada, o construtor pode executar antes do
+        // aplicativo terminar de inicializar o AppKit.
+        [NSApplication sharedApplication];
         if (gLoginController == nil) {
             gLoginController = [[MLLoginController alloc] init];
         }
@@ -119,11 +122,25 @@ void MLD_ShowLogin(void) {
     });
 }
 
+static void MLD_RetryAfterInjection(NSInteger attempt) {
+    if (attempt > 12) {
+        return;
+    }
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if (gLoginController == nil) {
+            MLD_ShowLogin();
+            MLD_RetryAfterInjection(attempt + 1);
+        }
+    });
+}
+
 __attribute__((constructor))
 static void MLD_Initialize(void) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        MLD_ShowLogin();
-    });
+    // Aguarda até aproximadamente 6 segundos para o processo injetado
+    // terminar de criar o NSApplication e o loop principal.
+    MLD_RetryAfterInjection(0);
 }
 
 __attribute__((destructor))
